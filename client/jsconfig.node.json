@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "type": "module",
+    "target": "esnext",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true
+  },
+}
