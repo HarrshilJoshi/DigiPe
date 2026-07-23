@@ -8,16 +8,18 @@ const REDIS_URL = rawRedisUrl ? rawRedisUrl.replace(/^["']|["']$/g, "").trim() :
 
 if (REDIS_URL) {
   try {
+    const isTls = REDIS_URL.startsWith("rediss://");
+    
     redisClient = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: 1,
+      maxRetriesPerRequest: null, // Safe for background operations
+      connectTimeout: 5000,
       retryStrategy(times) {
-        if (times > 3) {
-          return null; // Stop retrying after 3 attempts
-        }
-        return Math.min(times * 200, 1000);
+        // Retry with exponential backoff up to 5s, never return null to avoid fatal process exits
+        return Math.min(times * 300, 5000);
       },
       enableOfflineQueue: false,
       lazyConnect: true,
+      tls: isTls ? { rejectUnauthorized: false } : undefined,
     });
 
     redisClient.on("connect", () => {
@@ -27,13 +29,13 @@ if (REDIS_URL) {
 
     redisClient.on("error", (err) => {
       isRedisConnected = false;
-      console.warn("⚠️ Redis connection note:", err.message);
+      console.warn("⚠️ Redis note:", err.message);
     });
 
     // Attempt initial async connection silently
     redisClient.connect().catch((err) => {
       isRedisConnected = false;
-      console.warn("⚠️ Initial Redis connection failed (falling back to MongoDB):", err.message);
+      console.warn("⚠️ Initial Redis connection note:", err.message);
     });
   } catch (err) {
     console.warn("⚠️ Redis initialization skipped:", err.message);
