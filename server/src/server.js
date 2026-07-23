@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import http from "http";
 import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
 
 // Load local config .env if present
 dotenv.config({ path: "./src/config/.env" });
@@ -36,13 +37,38 @@ app.set("io", io);
 
 const userSockets = new Map();
 
+// Socket Authentication Middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  if (!token) {
+    return next();
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.userId;
+    next();
+  } catch (err) {
+    console.warn("Socket JWT verification note:", err.message);
+    next();
+  }
+});
+
 io.on("connection", (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
+  // Automatically join private user room if socket is authenticated via JWT
+  if (socket.userId) {
+    const userIdStr = String(socket.userId);
+    socket.join(userIdStr);
+    userSockets.set(userIdStr, socket.id);
+    console.log(`Authenticated user ${userIdStr} joined socket room`);
+  }
+
   socket.on("join", (userId) => {
-    socket.join(String(userId));
-    userSockets.set(String(userId), socket.id);
-    console.log(`User ${userId} joined room`);
+    const targetUserId = socket.userId ? String(socket.userId) : String(userId);
+    socket.join(targetUserId);
+    userSockets.set(targetUserId, socket.id);
+    console.log(`User ${targetUserId} joined room`);
   });
 
   socket.on("disconnect", () => {

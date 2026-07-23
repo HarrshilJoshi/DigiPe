@@ -21,8 +21,8 @@
     "node",
     "mongodb"
   ],
-  "author": "Satyajit Samal",
-  "license": "MIT",
+  "author": "Harshil Joshi",
+  "license": "",
   "devDependencies": {
     "concurrently": "^8.2.2"
   },

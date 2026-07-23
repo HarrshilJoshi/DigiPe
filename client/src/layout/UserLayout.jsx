@@ -3,7 +3,7 @@ import { Header } from "../components/Header";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import { userService } from "../services/userService";
+import { userService, performLogout } from "../services/userService";
 import { LiveNotificationToast } from "../components/LiveNotificationToast";
 
 export const UserLayout = () => {
@@ -17,18 +17,25 @@ export const UserLayout = () => {
     let timeoutId;
     const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
-    const performAutoLogout = () => {
-      localStorage.removeItem("token");
-      alert("Your session has expired due to inactivity. Please sign in again.");
-      navigate("/signin");
+    const handleInactivityLogout = () => {
+      // Show smooth in-app toast instead of blocking native alert
+      setActiveNotification({
+        type: "session_expired",
+        title: "Session Expired",
+        message: "Your session has expired due to 10 minutes of inactivity. Redirecting...",
+      });
+
+      setTimeout(() => {
+        performLogout(navigate, apiUrl);
+      }, 2000);
     };
 
     const resetInactivityTimer = () => {
       if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(performAutoLogout, INACTIVITY_TIMEOUT);
+      timeoutId = setTimeout(handleInactivityLogout, INACTIVITY_TIMEOUT);
     };
 
-    // Track user active states
+    // Track user active interaction events
     const activeEvents = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
 
     resetInactivityTimer();
@@ -43,14 +50,22 @@ export const UserLayout = () => {
         window.removeEventListener(evName, resetInactivityTimer);
       });
     };
-  }, [navigate]);
+  }, [navigate, apiUrl]);
 
+  // Authenticated WebSocket Connection
   useEffect(() => {
-    if (!id) return;
-    const socketUrl = apiUrl.replace("/api/v1", "");
-    const socket = io(socketUrl);
+    const token = localStorage.getItem("token");
+    if (!token && !id) return;
 
-    socket.emit("join", id);
+    const socketUrl = apiUrl.replace("/api/v1", "");
+    // Authenticate socket handshake using JWT token
+    const socket = io(socketUrl, {
+      auth: { token },
+    });
+
+    if (id) {
+      socket.emit("join", id);
+    }
 
     socket.on("notification:new", (data) => {
       console.log("Socket Notification received:", data);

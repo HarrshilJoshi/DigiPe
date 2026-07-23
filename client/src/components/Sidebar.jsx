@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import { performLogout } from "../services/userService";
 
 export const Sidebar = () => {
   const navigate = useNavigate();
@@ -13,8 +14,7 @@ export const Sidebar = () => {
   ];
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/signin");
+    performLogout(navigate);
   };
 
   return (

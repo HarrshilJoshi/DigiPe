@@ -9,14 +9,18 @@ import { TransferDetails } from "./pages/TransferDetails";
 import { TransferFunds } from "./pages/TransferFunds";
 import { CreateAccountForm } from "./components/CreateAccountForm";
 import { SecuritySettings } from "./pages/SecuritySettings";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function App() {
   return (
-    <>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/signup" element={<SignUpPage />} />
-          <Route path="/signin" element={<SignInPage />} />
+    <BrowserRouter>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/signin" element={<SignInPage />} />
+
+        {/* Protected User Routes */}
+        <Route element={<ProtectedRoute />}>
           <Route path="/user" element={<UserLayout />}>
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="create-account" element={<CreateAccountForm />} />
@@ -30,11 +34,13 @@ function App() {
               element={<TransferDetails />}
             />
           </Route>
-          <Route path="/" element={<SignInPage />} />
-          <Route path="*" element={<SignInPage />} />
-        </Routes>
-      </BrowserRouter>
-    </>
+        </Route>
+
+        {/* Fallback */}
+        <Route path="/" element={<SignInPage />} />
+        <Route path="*" element={<SignInPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

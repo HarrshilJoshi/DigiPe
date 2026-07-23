@@ -2,6 +2,35 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+/**
+ * Reusable logout helper to consistently handle session cleanup & backend token revocation
+ */
+export const performLogout = async (navigate, apiUrl) => {
+  const token = localStorage.getItem("token");
+  const targetApiUrl = apiUrl || import.meta.env.VITE_API_URL;
+
+  if (token && targetApiUrl) {
+    try {
+      await axios.post(
+        `${targetApiUrl}/auth/logout`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+    } catch (err) {
+      console.warn("Backend token revocation skipped or failed:", err.message);
+    }
+  }
+
+  localStorage.removeItem("token");
+  if (navigate) {
+    navigate("/signin");
+  } else {
+    window.location.href = "/signin";
+  }
+};
+
 export const userService = () => {
   const [username, setUsername] = useState("");
   const [firstname, setFirstname] = useState("");
@@ -21,6 +50,7 @@ export const userService = () => {
       navigate("/signin");
       return;
     }
+
     const fetchUser = async () => {
       try {
         const { data } = await axios.get(`${apiUrl}/user/me`, {
@@ -39,8 +69,8 @@ export const userService = () => {
       } catch (err) {
         console.error("Error fetching user details:", err.message);
         if (err.response && err.response.status === 401) {
-          console.error("Unauthorized access, redirecting to sign-in page.");
-          navigate("/signin");
+          console.error("Unauthorized access, performing logout.");
+          performLogout(navigate, apiUrl);
         }
       }
     };
