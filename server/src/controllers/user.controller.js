@@ -1,5 +1,5 @@
 import { User } from "../models/user.model.js";
-import { Account } from "../models/account.model.js";
+import { getCache, setCache, delCache } from "../config/redis.config.js";
 
 export const getUserDetails = async (req, res) => {
   try {
@@ -7,6 +7,14 @@ export const getUserDetails = async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: "User ID not found in request" });
     }
+
+    const cacheKey = `user:profile:${userId}`;
+    const cachedProfile = await getCache(cacheKey);
+
+    if (cachedProfile) {
+      return res.status(200).json({ ...cachedProfile, _cached: true });
+    }
+
     const user = await User.findById(userId).populate("account").lean();
     if (!user) {
       return res.status(404).json({ message: `User not found` });
@@ -29,6 +37,10 @@ export const getUserDetails = async (req, res) => {
         balance: acc.balance,
       }));
     }
+
+    // Cache profile in Redis for 5 minutes (300 seconds)
+    await setCache(cacheKey, payload, 300);
+
     res.status(200).json(payload);
   } catch (err) {
     console.error(err);
@@ -47,6 +59,9 @@ export const setMpin = async (req, res) => {
 
     user.mpin_hash = await user.createMpinHash(String(mpin));
     await user.save();
+
+    // Invalidate user profile cache in Redis
+    await delCache(`user:profile:${req.userId}`);
 
     res.status(200).json({ message: "MPIN set successfully" });
   } catch (err) {

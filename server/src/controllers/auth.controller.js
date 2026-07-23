@@ -102,3 +102,17 @@ export const signin = async (req, res) => {
     res.status(500).json({ message: `Internal server error, ${err.message}` });
   }
 };
+
+export const logout = async (req, res) => {
+  try {
+    const token = req.token || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
+    if (token) {
+      const { blacklistToken } = await import("../config/redis.config.js");
+      await blacklistToken(token, 3600); // 1 hour TTL matching JWT expiration
+    }
+    return res.status(200).json({ message: "Logout successful and token revoked." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+

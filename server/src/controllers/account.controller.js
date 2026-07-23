@@ -2,6 +2,7 @@ import { Account } from "../models/account.model.js";
 import { User } from "../models/user.model.js";
 import { Transaction } from "../models/transaction.model.js";
 import { accountSchema } from "../schemas/account.schema.js";
+import { getCache, setCache, delCache, flushPattern } from "../config/redis.config.js";
 
 export const getAccount = async (req, res) => {
   const account = await Account.find({ accountNumber: req.body.accountNumber });
@@ -72,6 +73,11 @@ export const createAccount = async (req, res) => {
     await User.findByIdAndUpdate(req.userId, {
       $push: { account: account._id },
     });
+
+    // Invalidate Redis profile & search caches
+    await delCache(`user:profile:${req.userId}`);
+    await flushPattern("search:*");
+
     res.status(201).json(account);
   } catch (err) {
     console.error(err);
@@ -85,6 +91,15 @@ export const searchAccounts = async (req, res) => {
   try {
     const { q } = req.query;
     if (!q || !q.trim()) return res.json({ accounts: [], transactions: [] });
+
+    const queryKey = q.trim().toLowerCase();
+    const cacheKey = `search:${queryKey}`;
+
+    // Check Redis cache
+    const cachedResults = await getCache(cacheKey);
+    if (cachedResults) {
+      return res.json({ ...cachedResults, _cached: true });
+    }
 
     const searchRegex = new RegExp(q.trim(), "i");
 
@@ -139,7 +154,7 @@ export const searchAccounts = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(10);
 
-    res.json({
+    const payload = {
       accounts: accounts.map((acc) => ({
         id: acc._id,
         firstname: acc.user?.firstname || "",
@@ -170,9 +185,15 @@ export const searchAccounts = async (req, res) => {
         senderAccountNum: t.metadata?.senderAccountNumber || t.senderAccount?.accountNumber || "",
         receiverAccountNum: t.metadata?.receiverAccountNumber || t.receiverAccount?.accountNumber || "",
       })),
-    });
+    };
+
+    // Cache search response in Redis for 2 minutes (120s)
+    await setCache(cacheKey, payload, 120);
+
+    res.json(payload);
   } catch (err) {
     console.error("Search error:", err);
     res.status(500).json({ error: `Internal Server Error ${err.message}` });
   }
 };
+

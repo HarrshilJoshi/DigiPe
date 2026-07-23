@@ -156,6 +156,14 @@ export const transferFunds = async (req, res) => {
       });
     }
 
+    // Clear Redis profile & search caches for both parties
+    try {
+      const { delCache, flushPattern } = await import("../config/redis.config.js");
+      await delCache(`user:profile:${result.senderAccount.user}`);
+      await delCache(`user:profile:${result.receiverAccount.user}`);
+      await flushPattern("search:*");
+    } catch (e) {}
+
     return res.status(201).json({
       ...result.transaction[0].toObject(),
       senderAccount: {
