@@ -3,34 +3,43 @@ import Redis from "ioredis";
 let redisClient = null;
 let isRedisConnected = false;
 
-const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+const REDIS_URL = process.env.REDIS_URL;
 
-try {
-  redisClient = new Redis(REDIS_URL, {
-    maxRetriesPerRequest: 1,
-    retryStrategy(times) {
-      if (times > 3) {
-        return null; // Stop retrying after 3 attempts
-      }
-      return Math.min(times * 200, 1000);
-    },
-    enableOfflineQueue: false, // Don't queue requests if Redis is offline
-  });
+if (REDIS_URL && REDIS_URL.trim()) {
+  try {
+    redisClient = new Redis(REDIS_URL.trim(), {
+      maxRetriesPerRequest: 1,
+      retryStrategy(times) {
+        if (times > 3) {
+          return null; // Stop retrying after 3 attempts
+        }
+        return Math.min(times * 200, 1000);
+      },
+      enableOfflineQueue: false,
+      lazyConnect: true,
+    });
 
-  redisClient.on("connect", () => {
-    isRedisConnected = true;
-    console.log("⚡ Redis connected successfully!");
-  });
+    redisClient.on("connect", () => {
+      isRedisConnected = true;
+      console.log("⚡ Redis connected successfully!");
+    });
 
-  redisClient.on("error", (err) => {
-    if (isRedisConnected) {
-      console.warn("⚠️ Redis connection lost:", err.message);
-    }
+    redisClient.on("error", (err) => {
+      isRedisConnected = false;
+      console.warn("⚠️ Redis connection note:", err.message);
+    });
+
+    // Attempt initial async connection silently
+    redisClient.connect().catch((err) => {
+      isRedisConnected = false;
+      console.warn("⚠️ Initial Redis connection failed (falling back to MongoDB):", err.message);
+    });
+  } catch (err) {
+    console.warn("⚠️ Redis initialization skipped:", err.message);
     isRedisConnected = false;
-  });
-} catch (err) {
-  console.warn("⚠️ Redis initialization skipped:", err.message);
-  isRedisConnected = false;
+  }
+} else {
+  console.log("ℹ️ No REDIS_URL configured. Running server in pure MongoDB mode.");
 }
 
 /**

@@ -47,26 +47,23 @@ export const sendLiveNotification = (userId, type, data) => {
   io.to(String(userId)).emit("notification:new", { type, ...data });
 };
 
-let isConnected = false;
-
-const connectDB = async () => {
-  if (isConnected) return;
+const startServer = async () => {
   try {
-    if (!DB_URI) {
-      throw new Error("DB_URI environment variable is missing!");
+    if (DB_URI) {
+      await mongoose.connect(DB_URI);
+      console.log("DB connected successfully!");
+    } else {
+      console.warn("⚠️ Warning: DB_URI environment variable is missing!");
     }
-    await mongoose.connect(DB_URI);
-    isConnected = true;
-    console.log("DB connected successfully!");
   } catch (error) {
     console.error(`MongoDB connection error: ${error.message}`);
-  } finally {
-    server.listen(PORT, () => {
-      console.log(`Server running on port: ${PORT}`);
-    });
   }
+
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server listening on 0.0.0.0:${PORT}`);
+  });
 };
 
-connectDB();
+startServer();
 
 export default app;
