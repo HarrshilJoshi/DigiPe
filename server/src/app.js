@@ -8,7 +8,26 @@ import requestRoutes from "./routes/request.route.js";
 
 const app = express();
 
-app.use(cors());
+// Explicit CORS middleware configuration for production preflight & custom headers
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "account-number",
+      "x-mpin",
+      "X-Requested-With",
+      "Accept",
+    ],
+    credentials: false,
+  })
+);
+
+// Explicit preflight handler for all routes
+app.options("*", cors());
+
 app.use(express.json());
 
 app.use("/api/v1/auth", authRoutes);
