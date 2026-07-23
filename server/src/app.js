@@ -25,9 +25,6 @@ app.use(
   })
 );
 
-// Explicit preflight handler for all routes
-app.options("*", cors());
-
 app.use(express.json());
 
 // Root health check endpoint for Render / cloud monitoring
