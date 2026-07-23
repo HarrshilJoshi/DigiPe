@@ -9,13 +9,16 @@ const REDIS_URL = rawRedisUrl ? rawRedisUrl.replace(/^["']|["']$/g, "").trim() :
 if (REDIS_URL) {
   try {
     const isTls = REDIS_URL.startsWith("rediss://");
-    
+
     redisClient = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: null, // Safe for background operations
+      maxRetriesPerRequest: 1,
       connectTimeout: 5000,
       retryStrategy(times) {
-        // Retry with exponential backoff up to 5s, never return null to avoid fatal process exits
-        return Math.min(times * 300, 5000);
+        if (times > 3) {
+          console.warn("⚠️ Redis failed to connect after 3 attempts. Disabling Redis and running in pure MongoDB mode.");
+          return null; // Stop retrying after 3 attempts to prevent CPU loops
+        }
+        return Math.min(times * 500, 2000);
       },
       enableOfflineQueue: false,
       lazyConnect: true,
@@ -29,13 +32,22 @@ if (REDIS_URL) {
 
     redisClient.on("error", (err) => {
       isRedisConnected = false;
-      console.warn("⚠️ Redis note:", err.message);
+      console.warn("⚠️ Redis connection note:", err.message);
+      if (err.message && (err.message.includes("WRONGPASS") || err.message.includes("NOAUTH"))) {
+        console.warn("⚠️ Invalid Redis credentials detected. Disconnecting Redis fallback.");
+        try {
+          redisClient.disconnect();
+        } catch (e) {}
+      }
     });
 
     // Attempt initial async connection silently
     redisClient.connect().catch((err) => {
       isRedisConnected = false;
       console.warn("⚠️ Initial Redis connection note:", err.message);
+      try {
+        redisClient.disconnect();
+      } catch (e) {}
     });
   } catch (err) {
     console.warn("⚠️ Redis initialization skipped:", err.message);
