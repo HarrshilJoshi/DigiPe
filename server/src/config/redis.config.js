@@ -3,11 +3,12 @@ import Redis from "ioredis";
 let redisClient = null;
 let isRedisConnected = false;
 
-const REDIS_URL = process.env.REDIS_URL;
+const rawRedisUrl = process.env.REDIS_URL;
+const REDIS_URL = rawRedisUrl ? rawRedisUrl.replace(/^["']|["']$/g, "").trim() : "";
 
-if (REDIS_URL && REDIS_URL.trim()) {
+if (REDIS_URL) {
   try {
-    redisClient = new Redis(REDIS_URL.trim(), {
+    redisClient = new Redis(REDIS_URL, {
       maxRetriesPerRequest: 1,
       retryStrategy(times) {
         if (times > 3) {
