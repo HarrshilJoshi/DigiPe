@@ -5,46 +5,24 @@ import { accountSchema } from "../schemas/account.schema.js";
 import { getCache, setCache, delCache, flushPattern } from "../config/redis.config.js";
 
 export const getAccount = async (req, res) => {
-  const account = await Account.find({ accountNumber: req.body.accountNumber });
-  if (!account)
-    return res.status(404).json({ message: `Account doesn't exist` });
-  const payload = {
-    id: account._id,
-    accountNumber: account.accountNumber,
-    ifsc: account.ifsc,
-    bankName: account.bankName,
-    balance: account.balance,
-  };
-  if (account.transactions && account.transactions.length > 0) {
-    payload.transactions = account.transactions.map((txn) => ({
-      id: txn._id,
-      amount: txn.amount,
-      description: txn.description,
-      date: txn.createdAt,
-      referenceId: txn.referenceId,
-      senderAccount: {
-        id: txn.senderAccount._id,
-        accountNumber: txn.senderAccount.accountNumber,
-        bankName: txn.senderAccount.bankName,
-        balance: txn.senderAccount.balance,
-      },
-      receiverAccount: {
-        id: txn.receiverAccount._id,
-        accountNumber: txn.receiverAccount.accountNumber,
-        bankName: txn.receiverAccount.bankName,
-        balance: txn.receiverAccount.balance,
-      },
-      status: txn.status,
-    }));
+  try {
+    const { accountNumber } = req.body || req.query;
+    const accounts = await Account.find(accountNumber ? { accountNumber } : {});
+    if (!accounts || accounts.length === 0) {
+      return res.status(404).json({ message: `Account doesn't exist` });
+    }
+    return res.json({
+      accountDetails: accounts.map((a) => ({
+        id: a._id,
+        accountNumber: a.accountNumber,
+        ifsc: a.ifsc,
+        bankName: a.bankName,
+        balance: a.balance,
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
-  res.json({
-    accountDetails: account.map((a) => ({
-      accountNumber: a.accountNumber,
-      ifsc: a.ifsc,
-      bankName: a.bankName,
-      balance: a.balance,
-    })),
-  });
 };
 
 export const createAccount = async (req, res) => {

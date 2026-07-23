@@ -30,6 +30,14 @@ app.options("*", cors());
 
 app.use(express.json());
 
+// Root health check endpoint for Render / cloud monitoring
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "OK", service: "DigiPe API", timestamp: new Date() });
+});
+app.head("/", (req, res) => {
+  res.status(200).end();
+});
+
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/account", accountRoutes);
 app.use("/api/v1/transaction", transactionRoutes);
