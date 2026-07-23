@@ -4,9 +4,12 @@ import http from "http";
 import { Server } from "socket.io";
 import app from "./app.js";
 
+// Load local .env if present, but preserve system/cloud process.env
 dotenv.config({ path: "./src/config/.env" });
+dotenv.config();
 
 const PORT = process.env.PORT || 5000;
+const DB_URI = process.env.DB_URI;
 const server = http.createServer(app);
 
 export const io = new Server(server, {
@@ -49,11 +52,14 @@ let isConnected = false;
 const connectDB = async () => {
   if (isConnected) return;
   try {
-    await mongoose.connect(process.env.DB_URI);
+    if (!DB_URI) {
+      throw new Error("DB_URI environment variable is missing!");
+    }
+    await mongoose.connect(DB_URI);
     isConnected = true;
     console.log("DB connected successfully!");
   } catch (error) {
-    console.error(`MongoDB connection failed ${error.message}`);
+    console.error(`MongoDB connection error: ${error.message}`);
   } finally {
     server.listen(PORT, () => {
       console.log(`Server running on port: ${PORT}`);
