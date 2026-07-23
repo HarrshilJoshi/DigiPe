@@ -8,7 +8,23 @@ import requestRoutes from "./routes/request.route.js";
 
 const app = express();
 
-// Explicit CORS middleware configuration for production preflight & custom headers
+// Trust proxy for Render cloud reverse proxy
+app.set("trust proxy", 1);
+
+// Direct universal CORS header injection middleware (applies to ALL requests, errors & preflights)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization, account-number, x-mpin"
+  );
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  next();
+});
+
 app.use(
   cors({
     origin: "*",
@@ -43,6 +59,13 @@ app.use("/api/v1/payment-request", requestRoutes);
 
 app.get("/test", (req, res) => {
   res.json({ message: "API is working!" });
+});
+
+// Express error handler with CORS headers
+app.use((err, req, res, next) => {
+  console.error("Global Express Error:", err);
+  res.header("Access-Control-Allow-Origin", "*");
+  res.status(500).json({ error: err.message || "Internal Server Error" });
 });
 
 export default app;
