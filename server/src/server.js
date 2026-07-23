@@ -1,21 +1,25 @@
+import "dotenv/config";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import http from "http";
 import { Server } from "socket.io";
+
+// Load local config .env if present
+dotenv.config({ path: "./src/config/.env" });
+
+// Import app after environment variables are initialized
 import app from "./app.js";
+
+console.log("🚀 Initializing DigiPe Server...");
 
 // Global uncaught error handlers to prevent process exit in cloud hosting
 process.on("uncaughtException", (err) => {
-  console.error("⚠️ Uncaught Exception:", err.message);
+  console.error("⚠️ Uncaught Exception:", err.stack || err.message);
 });
 
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ Unhandled Rejection:", reason);
 });
-
-// Load local .env if present, but preserve system/cloud process.env
-dotenv.config({ path: "./src/config/.env" });
-dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 const DB_URI = process.env.DB_URI ? process.env.DB_URI.replace(/^["']|["']$/g, "").trim() : "";
@@ -58,7 +62,7 @@ export const sendLiveNotification = (userId, type, data) => {
 
 // 1. Start HTTP server IMMEDIATELY so Render health check passes instantly
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 DigiPe server listening on port: ${PORT}`);
+  console.log(`⚡ DigiPe server listening on 0.0.0.0:${PORT}`);
 });
 
 // 2. Connect MongoDB asynchronously in background
