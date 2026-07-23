@@ -2,8 +2,10 @@
   "name": "digipe",
   "version": "1.0.0",
   "description": "Full-stack payment application with React, Node, Express and MongoDB",
-  "main": "index.js",
+  "main": "server/src/server.js",
   "scripts": {
+    "start": "node server/src/server.js",
+    "postinstall": "npm install --prefix server",
     "install-all": "npm install --prefix client && npm install --prefix server",
     "client": "npm start --prefix client",
     "server": "npm run dev --prefix server",
