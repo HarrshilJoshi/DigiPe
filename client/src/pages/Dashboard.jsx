@@ -70,28 +70,73 @@ export const Dashboard = () => {
   };
 
   const getCardStyle = (bankName = "") => {
+
     const name = bankName.toLowerCase();
+
+    // State Bank of India (Classic Deep Teal / Blue)
     if (name.includes("state bank") || name.includes("sbi")) {
       return "bg-gradient-to-br from-[#005A6F] to-[#003442] text-white shadow-md shadow-slate-900/10";
     }
+
+    // HDFC Bank (Deep Royal Blue)
     if (name.includes("hdfc")) {
       return "bg-gradient-to-br from-[#1C3B87] to-[#0D1E4C] text-white shadow-md shadow-slate-900/10";
     }
+
+    // ICICI Bank (Deep Orange / Rust)
     if (name.includes("icici")) {
       return "bg-gradient-to-br from-[#A84A04] to-[#602700] text-white shadow-md shadow-slate-900/10";
     }
+
+    // Axis Bank (Deep Burgundy / Maroon)
     if (name.includes("axis")) {
       return "bg-gradient-to-br from-[#730D35] to-[#400019] text-white shadow-md shadow-slate-900/10";
     }
+
+    // Federal Bank (Signature Navy Blue & Yellow Accent)
+    if (name.includes("federal")) {
+      return "bg-gradient-to-br from-[#002064] to-[#001038] text-white shadow-md shadow-slate-900/10";
+    }
+
+    // Bank of Baroda (Baroda Sun Orange)
+    if (name.includes("baroda") || name.includes("bob")) {
+      return "bg-gradient-to-br from-[#F15A29] to-[#9E2F0B] text-white shadow-md shadow-slate-900/10";
+    }
+
+    // Punjab National Bank (PNB Maroon & Gold theme)
+    if (name.includes("punjab") || name.includes("pnb")) {
+      return "bg-gradient-to-br from-[#A20C39] to-[#59001B] text-white shadow-md shadow-slate-900/10";
+    }
+
+    // Bank of America (Classic US Flag Blue/Red Gradient Mix)
+    if (name.includes("america") || name.includes("boa")) {
+      return "bg-gradient-to-br from-[#012169] to-[#E31837] text-white shadow-md shadow-slate-900/10";
+    }
+
+    // Chase Bank (Signature Deep Sapphire Blue)
+    if (name.includes("chase")) {
+      return "bg-gradient-to-br from-[#1170CF] to-[#0A3D73] text-white shadow-md shadow-slate-900/10";
+    }
+
+    // Wells Fargo (Deep Crimson Red / Yellow Accent)
+    if (name.includes("wells fargo") || name.includes("wells")) {
+      return "bg-gradient-to-br from-[#CD1409] to-[#6B0400] text-white shadow-md shadow-slate-900/10";
+    }
+
+    // Default Fallback Gradient (Slate Dark)
     return "bg-gradient-to-br from-slate-800 to-slate-950 text-white shadow-md shadow-slate-900/10";
+
   };
+
+
+
 
   const userAccountNumbers = accounts.map((acc) => acc.accountNumber);
 
   return (
     <div className="bg-[#F8FAFC] text-slate-800 min-h-screen font-sans animate-fade">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* Main Left Workspace: Spans 2 Columns */}
         <div className="lg:col-span-2 flex flex-col gap-8">
           {/* Welcome Banner */}
@@ -188,7 +233,7 @@ export const Dashboard = () => {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex justify-between items-end mt-4">
                       <div>
                         <span className="text-[9px] text-white/60 font-semibold uppercase tracking-wider">Available Balance</span>
@@ -233,9 +278,8 @@ export const Dashboard = () => {
                       className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-2xs hover:shadow-xs hover:border-slate-300 transition duration-200 cursor-pointer transform hover:scale-[1.005]"
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs select-none bg-slate-100 ${
-                          isCredit ? "text-emerald-600" : "text-rose-600"
-                        }`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs select-none bg-slate-100 ${isCredit ? "text-emerald-600" : "text-rose-600"
+                          }`}>
                           {isCredit ? (
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 13l-7 7-7-7m14-6l-7 7-7-7" />
@@ -259,9 +303,8 @@ export const Dashboard = () => {
                         <div className={`font-black text-sm tracking-tight ${isCredit ? "text-emerald-600" : "text-slate-800"}`}>
                           {isCredit ? "+" : "-"} ₹ {txn.amount}
                         </div>
-                        <span className={`px-2 py-0.5 rounded-md text-[8px] font-extrabold uppercase tracking-wider ${
-                          isCredit ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-50 text-slate-600 border border-slate-200"
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-md text-[8px] font-extrabold uppercase tracking-wider ${isCredit ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-50 text-slate-600 border border-slate-200"
+                          }`}>
                           {isCredit ? "Credit" : "Debit"}
                         </span>
                       </div>
@@ -280,7 +323,7 @@ export const Dashboard = () => {
             <div>
               <h3 className="font-bold text-slate-900 text-sm tracking-tight">Quick Actions</h3>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-3.5">
               {/* Send Money */}
               <button
