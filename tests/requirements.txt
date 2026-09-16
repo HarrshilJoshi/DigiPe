@@ -1,0 +1,7 @@
+# Core automated UI testing dependencies
+# Run: pip install -r requirements.txt
+
+selenium>=4.20.0          # Web browser automation framework
+pytest>=8.0.0            # Test runner and assertions
+webdriver-manager>=4.0.0 # Automatically handles ChromeDriver downloads
+pytest-html>=4.1.0       # Generates readable HTML visual test reports
