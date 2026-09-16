@@ -1,21 +1,33 @@
 # Dependencies
 node_modules/
-client/node_modules/
-server/node_modules/
 
-# Production & build outputs
-dist/
+# Python / Virtual Environments
+venv/
+tests/venv/
+playwright_tests/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Test Reports & Artifacts
+report.html
+playwright-report/
+test-results/
+screenshots/
+tests/screenshots/
+
+# Environment Variables & Secrets
+.env
+.env.*
+server/src/config/.env
+*.local
+
+# Build Outputs
 client/dist/
+dist/
 build/
 
-# Environment variables & secrets
-.env
-*.env
-client/.env
-server/src/config/.env
-
-# IDE / System
-.vscode/
-.idea/
+# OS Files
 .DS_Store
-*.log
+Thumbs.db

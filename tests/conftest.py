@@ -9,11 +9,50 @@ Any test function can use 'driver' or 'base_url' simply by naming them in its ar
         driver.get(base_url)
 """
 
+import os
+from datetime import datetime
 import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from webdriver_manager.chrome import ChromeDriverManager
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """
+    Captures a screenshot automatically whenever a test fails during execution,
+    saves it to tests/screenshots/, and embeds it into report.html.
+    """
+    outcome = yield
+    report = outcome.get_result()
+    setattr(item, f"rep_{report.when}", report)
+
+    # Capture screenshot only if the test failed during the 'call' phase
+    if report.when == "call" and report.failed:
+        driver = item.funcargs.get("driver", None)
+        if driver:
+            # Create tests/screenshots directory if it doesn't exist
+            screenshots_dir = os.path.join(os.path.dirname(__file__), "screenshots")
+            os.makedirs(screenshots_dir, exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in item.name)
+            screenshot_filename = f"FAIL_{safe_name}_{timestamp}.png"
+            screenshot_path = os.path.join(screenshots_dir, screenshot_filename)
+
+            try:
+                driver.save_screenshot(screenshot_path)
+                print(f"\n📸 [SCREENSHOT CAPTURED]: {screenshot_path}")
+
+                # Embed screenshot in pytest-html report
+                pytest_html = item.config.pluginmanager.getplugin("html")
+                if pytest_html:
+                    extra = getattr(report, "extra", [])
+                    extra.append(pytest_html.extras.image(f"screenshots/{screenshot_filename}"))
+                    report.extra = extra
+            except Exception as e:
+                print(f"\n⚠️ [SCREENSHOT CAPTURE FAILED]: {e}")
 
 
 def pytest_addoption(parser):
