@@ -32,7 +32,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--base-url",
         action="store",
-        default="http://localhost:5173",
+        default="https://digipe.vercel.app",
         help="Base URL of the DigiPe frontend application."
     )
 

@@ -25,7 +25,7 @@ class SignupPage(BasePage):
     ERROR_BANNER = (By.CSS_SELECTOR, "div.text-red-655")
     SIGNIN_LINK_BUTTON = (By.XPATH, "//button[contains(text(), 'Sign in here')]")
 
-    def __init__(self, driver, base_url="http://localhost:5173"):
+    def __init__(self, driver, base_url="https://digipe.vercel.app"):
         super().__init__(driver)
         self.url = f"{base_url.rstrip('/')}/signup"
 

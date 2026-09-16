@@ -19,7 +19,7 @@ class DashboardPage(BasePage):
     LINKED_ACCOUNTS_HEADER = (By.XPATH, "//h3[contains(text(), 'Your Linked Accounts')]")
     QUICK_ACTIONS_HEADER = (By.XPATH, "//h3[contains(text(), 'Quick Actions')]")
 
-    def __init__(self, driver, base_url="http://localhost:5173"):
+    def __init__(self, driver, base_url="https://digipe.vercel.app"):
         super().__init__(driver)
         self.url = f"{base_url.rstrip('/')}/user/dashboard"
 
