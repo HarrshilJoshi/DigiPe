@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 
+/**
+ * Notification Schema: Stores user notifications for alerts (transactions, security alerts, system messages).
+ */
 const notificationSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,

@@ -1,16 +1,41 @@
-import axios from "axios";
+import { apiClient } from "../services/apiClient";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { userService } from "../services/userService";
 import { MpinModal } from "./MpinModal";
 
-const apiUrl = import.meta.env.VITE_API_URL;
+const getRazorpayBankCode = (bankName) => {
+  if (!bankName) return null;
+  const name = bankName.toLowerCase();
+  if (name.includes("state bank") || name.includes("sbin")) return "SBIN";
+  if (name.includes("hdfc")) return "HDFC";
+  if (name.includes("icici")) return "ICIC";
+  if (name.includes("axis")) return "UTIB";
+  if (name.includes("federal")) return "FDRL";
+  if (name.includes("baroda") || name.includes("bob")) return "BARB";
+  if (name.includes("punjab") || name.includes("pnb")) return "PUNB";
+  return null;
+};
 
+/**
+ * TransferForm Component:
+ * Provides a comprehensive bank transfer interface.
+ * Key Functional Areas:
+ * 1. Source Account selection (displays current balances).
+ * 2. Autocomplete search directory to locate active beneficiaries quickly by name, bank, or account number.
+ * 3. Input validation for recipient bank details (IFSC/Account).
+ * 4. Intercepts submission to request a secure 4-digit transaction MPIN before executing the payment.
+ */
 export const TransferForm = () => {
   const location = useLocation();
+  // Read state parameters passed from previous routing navigation
   const fromAccount = location.state?.fromAccount;
   const toAccount = location.state?.toAccount;
+  
+  // Custom hook containing user profiles and account records
   const { accounts, hasMpin } = userService();
+  
+  // Stores success receipt data returned from the backend after a transfer completes
   const [transferResult, setTransferResult] = useState(null);
 
   const [selectedAccount, setSelectedAccount] = useState(
@@ -24,6 +49,13 @@ export const TransferForm = () => {
     amount: "",
     description: "",
   });
+
+  const generateIdempotencyKey = () =>
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `idem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+  const [idempotencyKey, setIdempotencyKey] = useState(generateIdempotencyKey);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -64,7 +96,8 @@ export const TransferForm = () => {
     const acc = accounts.find((a) => (a._id || a.id) === e.target.value);
     setSelectedAccount(acc);
   };
-
+  // Sends search requests to retrieve matches from the database as the user types.
+  // Requires at least 2 characters to prevent flooding the backend with small queries.
   const handleSearch = async (val) => {
     setSearchQuery(val);
     if (val.trim().length < 2) {
@@ -73,9 +106,7 @@ export const TransferForm = () => {
     }
     setSearching(true);
     try {
-      const { data } = await axios.get(`${apiUrl}/account/search-accounts?q=${val}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const { data } = await apiClient.get(`/account/search-accounts?q=${val}`);
       setSearchResults(data.user || []);
     } catch (err) {
       console.error(err);
@@ -97,8 +128,12 @@ export const TransferForm = () => {
     setSearchQuery("");
   };
 
+  // Intercepts the form's submit behavior.
+  // Instead of initiating the transaction directly, it opens the MpinModal overlay
+  // to collect the 4-digit security PIN required for transaction signing.
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (!selectedAccount) {
       setError("Please select a source account.");
       return;
@@ -107,11 +142,18 @@ export const TransferForm = () => {
     setMpinOpen(true);
   };
 
+  // Fires the final POST request to execute the fund transfer.
+  // Sends core transaction details inside the request body.
+  // Custom HTTP Headers:
+  // - "account-number": Identifies which account belongs to the sender.
+  // - "x-mpin": Passes the collected security PIN for backend cryptographic hashing verification.
+  // - "Idempotency-Key": Prevents double-transfer or duplicate charges on network retries or rapid double-clicks.
   const handleMpinSubmit = async (pin) => {
+    if (submitting) return;
     setSubmitting(true);
     setMpinError("");
     setError("");
-    setSuccess("");
+    setSuccess("Executing fund transfer...");
 
     const payload = {
       toAccountNumber: form.toAccountNumber,
@@ -120,29 +162,34 @@ export const TransferForm = () => {
       lastname: form.lastname,
       amount: Number(form.amount),
       description: form.description,
+      idempotencyKey,
     };
 
     try {
-      const { data } = await axios.post(
-        `${apiUrl}/transaction/transfer-funds`,
+      const { data } = await apiClient.post(
+        "/transaction/transfer-funds",
         payload,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
             "account-number": selectedAccount.accountNumber,
             "x-mpin": pin,
+            "Idempotency-Key": idempotencyKey,
           },
         }
       );
-      setTransferResult(data);
-      setSuccess("Transaction successful!");
+
       setMpinOpen(false);
+      setSuccess("");
+      setTransferResult(data);
       setShowSuccessModal(true);
+      setSubmitting(false);
+      // Rotate idempotency key for the next payment
+      setIdempotencyKey(generateIdempotencyKey());
     } catch (err) {
       const msg = err?.response?.data?.message || "Transfer failed. Please try again.";
       setMpinError(msg);
       setError(msg);
-    } finally {
+      setSuccess("");
       setSubmitting(false);
     }
   };
@@ -318,6 +365,7 @@ export const TransferForm = () => {
         onSubmit={handleMpinSubmit}
         onClose={() => setMpinOpen(false)}
         error={mpinError}
+        isSubmitting={submitting}
       />
 
       {showSuccessModal && transferResult && (

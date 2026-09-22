@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
 
+/**
+ * LiveNotificationToast Component:
+ * Displays a slide-in alert box at the top-right corner of the screen when a real-time event
+ * is received via WebSockets (e.g., money received, payment requested).
+ * Automatically handles entry/exit timing animations by synchronizing a local `visible` state flag
+ * with standard browser timeout timers (5-second auto-dismiss).
+ */
 export const LiveNotificationToast = ({ notification, onClose }) => {
   const [visible, setVisible] = useState(false);
 

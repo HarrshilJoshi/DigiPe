@@ -2,12 +2,38 @@ import { useNavigate } from "react-router-dom";
 import { userService } from "../services/userService";
 import { transactionService } from "../services/transactionService";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import { apiClient } from "../services/apiClient";
 import { RequestMoneyForm } from "../components/RequestMoneyForm";
 import { MpinModal } from "../components/MpinModal";
 
+/**
+ * Map user bank names to official Razorpay standard IFSC prefixes/bank codes.
+ * This is critical for Razorpay's custom bank checkout flow, allowing the app to route
+ * Netbanking sessions directly to the designated bank login page instead of displaying
+ * a generic selection dropdown, improving transaction completion rates.
+ */
+const getRazorpayBankCode = (bankName) => {
+  if (!bankName) return null;
+  const name = bankName.toLowerCase();
+  if (name.includes("state bank") || name.includes("sbin")) return "SBIN";
+  if (name.includes("hdfc")) return "HDFC";
+  if (name.includes("icici")) return "ICIC";
+  if (name.includes("axis")) return "UTIB";
+  if (name.includes("federal")) return "FDRL";
+  if (name.includes("baroda") || name.includes("bob")) return "BARB";
+  if (name.includes("punjab") || name.includes("pnb")) return "PUNB";
+  return null;
+};
+
+/**
+ * Dashboard Page Component:
+ * - Retrieves user profiles & bank account balances via custom hooks (`userService`, `transactionService`).
+ * - Pulls incoming payment requests dynamically using an API call inside `useEffect`.
+ * - Manages actions to decline or accept payment requests (which triggers the security MPIN verification modal).
+ * - Dynamically generates styled virtual credit/debit cards mapped to specific bank branding templates (e.g. SBI, HDFC, ICICI).
+ */
 export const Dashboard = () => {
-  const { username, firstname, lastname, email, phone, accounts, id } =
+  const { username, firstname, lastname, email, phone, accounts, id, hasMpin } =
     userService();
   const { transactions } = transactionService();
   const navigate = useNavigate();
@@ -17,31 +43,26 @@ export const Dashboard = () => {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [mpinRequestToApprove, setMpinRequestToApprove] = useState(null);
   const [mpinError, setMpinError] = useState("");
-  const apiUrl = import.meta.env.VITE_API_URL;
-  const token = localStorage.getItem("token");
 
+  // Fetch incoming payment requests targeted at the logged-in user from the server.
+  // Re-runs whenever the refreshTrigger updates (e.g., after approving/declining a request).
   useEffect(() => {
-    if (!token) return;
     const fetchRequests = async () => {
       try {
-        const { data } = await axios.get(`${apiUrl}/payment-request/my-requests`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const { data } = await apiClient.get("/payment-request/my-requests");
         setRequests(data.received || []);
       } catch (err) {
         console.error("Error fetching requests:", err);
       }
     };
     fetchRequests();
-  }, [apiUrl, token, refreshTrigger]);
+  }, [refreshTrigger]);
 
+  // Sends API request to decline a payment request.
+  // Updates request status directly in MongoDB to 'declined' and alerts the requester.
   const handleDeclineRequest = async (requestId) => {
     try {
-      await axios.post(
-        `${apiUrl}/payment-request/respond`,
-        { requestId, accept: false },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.post("/payment-request/respond", { requestId, accept: false });
       setRefreshTrigger((prev) => prev + 1);
     } catch (err) {
       alert(err.response?.data?.message || "Failed to decline request");
@@ -53,19 +74,22 @@ export const Dashboard = () => {
     setMpinRequestToApprove(requestId);
   };
 
+  // Submits the security MPIN collected from the modal along with approval response.
+  // Triggers the backend fund transfer process using strict ACID database sessions.
   const handleMpinSubmit = async (mpin) => {
     try {
       setMpinError("");
-      await axios.post(
-        `${apiUrl}/payment-request/respond`,
-        { requestId: mpinRequestToApprove, accept: true, mpin },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.post("/payment-request/respond", {
+        requestId: mpinRequestToApprove,
+        accept: true,
+        mpin,
+      });
+      
       setMpinRequestToApprove(null);
+      alert("Payment request successfully approved and processed!");
       setRefreshTrigger((prev) => prev + 1);
-      window.location.reload();
     } catch (err) {
-      setMpinError(err.response?.data?.message || "Failed to approve request");
+      setMpinError(err.response?.data?.message || "Failed to approve payment request");
     }
   };
 
@@ -150,6 +174,51 @@ export const Dashboard = () => {
               </p>
             </div>
           </div>
+
+          {/* Actionable Reminders / Banners */}
+          {!hasMpin && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-sm">
+                  ⚠️
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-amber-800">Set Transaction MPIN</h4>
+                  <p className="text-[10px] text-amber-600 mt-0.5">
+                    For your security, you must configure a 4-digit transaction MPIN before you can transfer funds.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate("/user/security")}
+                className="bg-amber-600 hover:bg-amber-700 text-white py-1.5 px-3 rounded-lg text-[10px] font-bold transition cursor-pointer shrink-0 ml-3"
+              >
+                Set MPIN Now
+              </button>
+            </div>
+          )}
+
+          {hasMpin && transactions.length === 0 && (
+            <div className="bg-blue-50 border border-blue-150 rounded-2xl p-4 flex items-center justify-between shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-sm">
+                  🚀
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-blue-800">Make Your First Transaction</h4>
+                  <p className="text-[10px] text-blue-600 mt-0.5">
+                    Link a bank account and transfer funds to friends and family instantly.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate("/user/transferfunds")}
+                className="bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded-lg text-[10px] font-bold transition cursor-pointer shrink-0 ml-3"
+              >
+                Send Money
+              </button>
+            </div>
+          )}
 
           {/* Pending Requests Banner if any */}
           {requests.length > 0 && (

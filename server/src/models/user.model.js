@@ -1,6 +1,10 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 
+/**
+ * User Schema: Stores profile, credentials (hashed password), associated bank accounts,
+ * and the hashed transaction security PIN (MPIN).
+ */
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
@@ -50,22 +54,34 @@ const userSchema = new mongoose.Schema({
   },
 });
 
+/**
+ * Hashes a plain-text password using bcrypt.
+ */
 userSchema.methods.createHash = async (plainTextPassword) => {
   const saltRounds = 10;
   const salt = await bcrypt.genSalt(saltRounds);
   return await bcrypt.hash(plainTextPassword, salt);
 };
 
+/**
+ * Validates a candidate plain-text password against the user's stored hash.
+ */
 userSchema.methods.validatePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password_hash);
 };
 
+/**
+ * Hashes a 4-digit transaction security PIN (MPIN) using bcrypt.
+ */
 userSchema.methods.createMpinHash = async (plainMpin) => {
   const saltRounds = 10;
   const salt = await bcrypt.genSalt(saltRounds);
   return await bcrypt.hash(plainMpin, salt);
 };
 
+/**
+ * Validates a client-submitted transaction MPIN against the user's stored MPIN hash.
+ */
 userSchema.methods.validateMpin = async function (candidateMpin) {
   if (!this.mpin_hash) return false;
   return await bcrypt.compare(candidateMpin, this.mpin_hash);

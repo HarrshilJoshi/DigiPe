@@ -1,7 +1,5 @@
-import axios from "axios";
+import { apiClient } from "../services/apiClient";
 import { useState } from "react";
-
-const apiUrl = import.meta.env.VITE_API_URL;
 
 const BANKS = [
   "State Bank of India",
@@ -46,19 +44,12 @@ export const CreateAccountForm = () => {
     }
 
     try {
-      const token = localStorage.getItem("token");
-      await axios.post(
-        `${apiUrl}/account/create-account`,
-        {
-          accountNumber: String(accountNumber),
-          ifsc: String(ifsc).toUpperCase(),
-          bankName,
-          balance: Number(balance),
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      await apiClient.post("/account/create-account", {
+        accountNumber: String(accountNumber),
+        ifsc: String(ifsc).toUpperCase(),
+        bankName,
+        balance: Number(balance),
+      });
       setSuccess("Account linked successfully!");
       setAccountNumber("");
       setIfsc("");

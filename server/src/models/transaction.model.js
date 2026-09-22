@@ -1,5 +1,10 @@
 import mongoose from "mongoose";
 
+/**
+ * Transaction Schema: Logs all ledger transfers between sender and receiver.
+ * Stores transactional metadata, reference identifiers, linking ID to PaymentRequest,
+ * and standard Razorpay checkout signature/order/payment trace fields for verification audit.
+ */
 const transactionSchema = new mongoose.Schema({
   senderAccount: {
     type: mongoose.Schema.Types.ObjectId,
@@ -29,15 +34,38 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     unique: true,
   },
+  idempotencyKey: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
+  },
   metadata: {
     senderName: String,
     receiverName: String,
     senderAccountNumber: String,
     receiverAccountNumber: String,
   },
+  razorpayOrderId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  razorpayPaymentId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  razorpaySignature: {
+    type: String,
+  },
+  paymentRequestId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PaymentRequest",
+  },
   createdAt: {
     type: Date,
-    date: Date.now,
+    default: Date.now,
   },
 });
 

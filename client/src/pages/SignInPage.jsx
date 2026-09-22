@@ -1,6 +1,6 @@
-import axios from "axios";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import apiClient from "../services/apiClient";
 
 export const SignInPage = () => {
   const emailRef = useRef();
@@ -10,8 +10,6 @@ export const SignInPage = () => {
   const [response, setResponse] = useState("");
   const [fadeOut, setFadeOut] = useState(false);
 
-  const apiUrl = import.meta.env.VITE_API_URL;
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -20,12 +18,15 @@ export const SignInPage = () => {
       password: passwordRef.current.value,
     };
     try {
-      const response = await axios.post(`${apiUrl}/auth/signin`, {
+      const res = await apiClient.post("/auth/signin", {
         email: payload.email,
         password: payload.password,
       });
-      localStorage.setItem("token", response.data.token);
-      setResponse(response.data.message);
+      const token = res.data.accessToken || res.data.token;
+      if (token) {
+        localStorage.setItem("token", token);
+      }
+      setResponse(res.data.message);
       setFadeOut(true);
       setTimeout(() => {
         navigate("/user/dashboard");

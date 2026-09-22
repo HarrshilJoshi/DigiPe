@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import { apiClient } from "../services/apiClient";
 
 export const RequestMoneyForm = ({ isOpen, onClose, onSuccess }) => {
   const [form, setForm] = useState({
@@ -10,9 +10,6 @@ export const RequestMoneyForm = ({ isOpen, onClose, onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-
-  const apiUrl = import.meta.env.VITE_API_URL;
-  const token = localStorage.getItem("token");
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -25,19 +22,11 @@ export const RequestMoneyForm = ({ isOpen, onClose, onSuccess }) => {
     setSuccessMsg("");
 
     try {
-      const { data } = await axios.post(
-        `${apiUrl}/payment-request/create`,
-        {
-          toAccountNumber: form.toAccountNumber,
-          amount: Number(form.amount),
-          description: form.description,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const { data } = await apiClient.post("/payment-request/create", {
+        toAccountNumber: form.toAccountNumber,
+        amount: Number(form.amount),
+        description: form.description,
+      });
       setSuccessMsg(data.message || "Payment request sent successfully!");
       setForm({ toAccountNumber: "", amount: "", description: "" });
       if (onSuccess) onSuccess();

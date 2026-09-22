@@ -1,6 +1,10 @@
 import { User } from "../models/user.model.js";
-import { getCache, setCache, delCache } from "../config/redis.config.js";
+import { getCache, setCache, delCache, resetMpinAttempts } from "../config/redis.config.js";
 
+/**
+ * Retrieves the full user profile details including associated bank account balances.
+ * Incorporates a Redis cache layer (5-minute TTL) to minimize redundant database lookups.
+ */
 export const getUserDetails = async (req, res) => {
   try {
     const userId = req.userId;
@@ -48,6 +52,10 @@ export const getUserDetails = async (req, res) => {
   }
 };
 
+/**
+ * Secures a 4-digit MPIN used for validating transaction authorizations.
+ * Hashes the MPIN using the user model schema helper and invalidates the cached profile in Redis.
+ */
 export const setMpin = async (req, res) => {
   try {
     const { mpin } = req.body;
@@ -60,8 +68,9 @@ export const setMpin = async (req, res) => {
     user.mpin_hash = await user.createMpinHash(String(mpin));
     await user.save();
 
-    // Invalidate user profile cache in Redis
+    // Invalidate user profile cache in Redis and unlock MPIN attempts
     await delCache(`user:profile:${req.userId}`);
+    await resetMpinAttempts(req.userId);
 
     res.status(200).json({ message: "MPIN set successfully" });
   } catch (err) {

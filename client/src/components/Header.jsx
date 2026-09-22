@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import axios from "axios";
+import { apiClient } from "../services/apiClient";
 import { useNavigate } from "react-router-dom";
 
 export const Header = () => {
@@ -10,24 +10,19 @@ export const Header = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef(null);
 
-  const apiUrl = import.meta.env.VITE_API_URL;
-  const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!token) return;
     const fetchUser = async () => {
       try {
-        const { data } = await axios.get(`${apiUrl}/user/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const { data } = await apiClient.get("/user/me");
         setUser(data);
       } catch (err) {
         console.error("Header user fetch failed", err);
       }
     };
     fetchUser();
-  }, [apiUrl, token]);
+  }, []);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -41,9 +36,8 @@ export const Header = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const { data } = await axios.get(`${apiUrl}/account/search-accounts`, {
+        const { data } = await apiClient.get("/account/search-accounts", {
           params: { q: searchQuery.trim() },
-          headers: { Authorization: `Bearer ${token}` },
         });
         setSearchResults({
           accounts: data.accounts || [],
@@ -58,7 +52,7 @@ export const Header = () => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, apiUrl, token]);
+  }, [searchQuery]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {

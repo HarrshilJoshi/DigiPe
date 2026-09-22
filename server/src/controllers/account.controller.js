@@ -4,6 +4,9 @@ import { Transaction } from "../models/transaction.model.js";
 import { accountSchema } from "../schemas/account.schema.js";
 import { getCache, setCache, delCache, flushPattern } from "../config/redis.config.js";
 
+/**
+ * Retrieves details for all bank accounts, or a specific account if accountNumber is provided.
+ */
 export const getAccount = async (req, res) => {
   try {
     const { accountNumber } = req.body || req.query;
@@ -25,6 +28,10 @@ export const getAccount = async (req, res) => {
   }
 };
 
+/**
+ * Creates a new bank account for the authenticated user.
+ * Associates it with the user model and invalidates user profile & search cache in Redis.
+ */
 export const createAccount = async (req, res) => {
   const accountResult = accountSchema.safeParse(req.body);
   if (!accountResult.success) {
@@ -65,13 +72,18 @@ export const createAccount = async (req, res) => {
   }
 };
 
+/**
+ * Performs a global search across Users, Accounts, and Transactions based on query string.
+ * Restricts transaction results to the logged-in user's accounts for privacy.
+ * Caches query results in Redis for 2 minutes to optimize load times.
+ */
 export const searchAccounts = async (req, res) => {
   try {
     const { q } = req.query;
     if (!q || !q.trim()) return res.json({ accounts: [], transactions: [] });
 
     const queryKey = q.trim().toLowerCase();
-    const cacheKey = `search:${queryKey}`;
+    const cacheKey = `search:${req.userId}:${queryKey}`;
 
     // Check Redis cache
     const cachedResults = await getCache(cacheKey);
@@ -104,6 +116,10 @@ export const searchAccounts = async (req, res) => {
     }).populate("user", "firstname lastname email username");
 
     // 3. Search transactions matching query (description, ref ID, status, or metadata)
+    // For privacy, restrict search results to transactions involving the logged-in user's accounts
+    const userAccounts = await Account.find({ user: req.userId }).select("_id");
+    const userAccountIds = userAccounts.map((acc) => acc._id);
+
     const isNumber = !isNaN(Number(q.trim()));
     const transactionConditions = [
       { description: { $regex: searchRegex } },
@@ -119,7 +135,17 @@ export const searchAccounts = async (req, res) => {
     }
 
     const transactions = await Transaction.find({
-      $or: transactionConditions,
+      $and: [
+        {
+          $or: [
+            { senderAccount: { $in: userAccountIds } },
+            { receiverAccount: { $in: userAccountIds } },
+          ],
+        },
+        {
+          $or: transactionConditions,
+        },
+      ],
     })
       .populate({
         path: "senderAccount",

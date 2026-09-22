@@ -1,14 +1,32 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-export const MpinModal = ({ isOpen, onSubmit, onClose, error }) => {
+/**
+ * MpinModal Component:
+ * A secure modal keypad overlay for authorizing payments or critical requests.
+ * Features:
+ * - Emulated on-screen PIN pad (no keyboard logging vectors).
+ * - Automatic lockout mechanism synchronized with backend Redis 3-strike policy.
+ * - Triggers high-level submit handlers on completion.
+ */
+export const MpinModal = ({ isOpen, onSubmit, onClose, error, isSubmitting: externalSubmitting }) => {
+  const navigate = useNavigate();
+  // Local state representing the current 4-digit code input
   const [pin, setPin] = useState("");
+  // Local state tracking incorrect submissions
   const [attempts, setAttempts] = useState(0);
+  // Status flag displaying loading state during network transit
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const submittingState = externalSubmitting !== undefined ? externalSubmitting : isSubmitting;
+  const isServerLocked = Boolean(error && (error.toLowerCase().includes("locked") || error.toLowerCase().includes("frozen")));
 
   // Clear PIN and increment attempt counter when an error is returned
   useEffect(() => {
     if (error) {
       setPin("");
       setAttempts((prev) => prev + 1);
+      setIsSubmitting(false);
     }
   }, [error]);
 
@@ -16,37 +34,38 @@ export const MpinModal = ({ isOpen, onSubmit, onClose, error }) => {
   useEffect(() => {
     if (isOpen) {
       setPin("");
-      setAttempts(0);
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
+  const isLocked = attempts >= 3 || isServerLocked || submittingState;
+
   const handleKeyPress = (num) => {
-    if (attempts >= 3) return; // Prevent input if locked out
+    if (isLocked) return; // Prevent input if locked out or submitting
     if (pin.length < 4) {
       setPin((prev) => prev + num);
     }
   };
 
   const handleBackspace = () => {
-    if (attempts >= 3) return;
+    if (isLocked) return;
     setPin((prev) => prev.slice(0, -1));
   };
 
   const handleClear = () => {
-    if (attempts >= 3) return;
+    if (isLocked) return;
     setPin("");
   };
 
   const handleConfirm = () => {
-    if (attempts >= 3) return;
+    if (isLocked) return;
     if (pin.length === 4) {
+      setIsSubmitting(true);
       onSubmit(pin);
     }
   };
 
   if (!isOpen) return null;
-
-  const isLocked = attempts >= 3;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs px-4">
@@ -69,13 +88,23 @@ export const MpinModal = ({ isOpen, onSubmit, onClose, error }) => {
         </div>
 
         {/* Attempt message or lockout warning */}
-        {isLocked ? (
-          <div className="text-red-655 text-xs font-semibold bg-red-50 border border-red-100 py-3 px-4 rounded-xl mb-6 w-full text-center">
-            🔒 Too many incorrect attempts. For security reasons, this transaction session is blocked. Please close this window and try again.
+        {isServerLocked || attempts >= 3 ? (
+          <div className="text-red-600 text-xs font-semibold bg-red-50 border border-red-200 py-3 px-4 rounded-xl mb-6 w-full text-center">
+            <div className="mb-2">🔒 {error || "Maximum 3 incorrect MPIN attempts reached. Transfers are locked for 24 hours."}</div>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                navigate("/user/security");
+              }}
+              className="mt-1 bg-red-600 hover:bg-red-700 text-white font-medium text-xs px-3 py-1.5 rounded-lg transition shadow-sm cursor-pointer"
+            >
+              Reset PIN in Security Settings
+            </button>
           </div>
         ) : error ? (
-          <div className="text-red-655 text-xs font-semibold bg-red-50 border border-red-100 py-1.5 px-3 rounded-lg mb-4 w-full text-center">
-            {error} <span className="text-[10px] text-red-500 font-normal">({3 - attempts} attempts remaining)</span>
+          <div className="text-red-600 text-xs font-semibold bg-red-50 border border-red-100 py-2 px-3 rounded-lg mb-4 w-full text-center">
+            {error}
           </div>
         ) : null}
 
@@ -132,22 +161,25 @@ export const MpinModal = ({ isOpen, onSubmit, onClose, error }) => {
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-2.5 rounded-xl text-xs border border-slate-200 transition"
+            disabled={isSubmitting}
+            className={`flex-1 bg-slate-100 hover:bg-slate-200 text-slate-650 font-medium py-2.5 rounded-xl text-xs border border-slate-200 transition ${
+              isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+            }`}
           >
-            {isLocked ? "Close" : "Cancel"}
+            {attempts >= 3 ? "Close" : "Cancel"}
           </button>
-          {!isLocked && (
+          {attempts < 3 && (
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={pin.length !== 4}
+              disabled={pin.length !== 4 || isSubmitting}
               className={`flex-1 font-medium py-2.5 rounded-xl text-xs transition border border-transparent ${
-                pin.length === 4
+                pin.length === 4 && !isSubmitting
                   ? "bg-blue-600 hover:bg-blue-500 text-white shadow-sm"
                   : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
               }`}
             >
-              Authorize
+              {isSubmitting ? "Authorizing..." : "Authorize"}
             </button>
           )}
         </div>

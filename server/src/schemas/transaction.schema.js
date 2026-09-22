@@ -7,5 +7,6 @@ export const transactionSchema = z.object({
   lastname: z.string().min(1, "Last name required"),
   amount: z.coerce.number().positive(),
   description: z.string().optional(),
+  idempotencyKey: z.string().optional(),
 });
 

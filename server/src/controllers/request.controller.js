@@ -3,7 +3,12 @@ import { PaymentRequest } from "../models/paymentRequest.model.js";
 import { User } from "../models/user.model.js";
 import { Account } from "../models/account.model.js";
 import { Transaction } from "../models/transaction.model.js";
+import { checkMpinLockout, recordMpinFailure, resetMpinAttempts } from "../config/redis.config.js";
 
+/**
+ * Create a new payment request from current user (requester) to another account (payer).
+ * Emits a real-time socket notification to the payer if connected.
+ */
 export const createPaymentRequest = async (req, res) => {
   try {
     const { toAccountNumber, amount, description } = req.body;
@@ -47,6 +52,11 @@ export const createPaymentRequest = async (req, res) => {
   }
 };
 
+/**
+ * Retrieve all payment requests associated with the authenticated user:
+ * - "received": pending requests sent to this user by others.
+ * - "sent": all requests created by this user.
+ */
 export const getMyRequests = async (req, res) => {
   try {
     const userId = req.userId;
@@ -85,6 +95,11 @@ export const getMyRequests = async (req, res) => {
   }
 };
 
+/**
+ * Helper: Processes the actual payment deduction, balance update, status transition, 
+ * security MPIN verification, and creates the transaction audit log.
+ * Supports optional MongoDB replica-set sessions.
+ */
 const executeApproval = async (userId, requestObj, payerAccount, requesterAccount, mpin, session) => {
   // Validate MPIN
   const payerUser = session
@@ -92,29 +107,78 @@ const executeApproval = async (userId, requestObj, payerAccount, requesterAccoun
     : await User.findById(userId);
 
   if (!payerUser.mpin_hash) {
-    throw new Error("Transaction PIN has not been set. Please set your MPIN in Security Settings.");
+    const err = new Error("Transaction PIN has not been set. Please set your MPIN in Security Settings.");
+    err.statusCode = 400;
+    throw err;
   }
   if (!mpin) {
-    throw new Error("Security MPIN is required");
-  }
-  const isMpinValid = await payerUser.validateMpin(String(mpin));
-  if (!isMpinValid) {
-    throw new Error("Incorrect Security MPIN");
+    const err = new Error("Security MPIN is required");
+    err.statusCode = 400;
+    throw err;
   }
 
-  if (payerAccount.balance < requestObj.amount) {
+  // 1. Check if user is locked out before running bcrypt
+  const lockStatus = await checkMpinLockout(userId);
+  if (lockStatus.locked) {
+    const err = new Error("Account locked: Maximum 3 incorrect MPIN attempts reached. Transfers are frozen for 24 hours. Reset your PIN in Security Settings to unlock.");
+    err.statusCode = 423;
+    err.isLocked = true;
+    throw err;
+  }
+
+  // 2. Validate MPIN with bcrypt
+  const isMpinValid = await payerUser.validateMpin(String(mpin));
+  if (!isMpinValid) {
+    const failureStatus = await recordMpinFailure(userId);
+    if (failureStatus.locked) {
+      const err = new Error("Security alert: 3 consecutive incorrect MPIN attempts. Your account is now locked for 24 hours. Reset your PIN in Security Settings to unlock.");
+      err.statusCode = 423;
+      err.isLocked = true;
+      throw err;
+    }
+    const err = new Error(`Incorrect Security MPIN. ${failureStatus.remainingAttempts} attempt(s) remaining before account lockout.`);
+    err.statusCode = 400;
+    err.remainingAttempts = failureStatus.remainingAttempts;
+    throw err;
+  }
+
+  // 3. Reset failed attempts counter on valid MPIN
+  await resetMpinAttempts(userId);
+
+  // Atomic conditional deduction directly in database engine
+  const updatePayerOpts = { new: true };
+  if (session) updatePayerOpts.session = session;
+
+  const updatedPayerAccount = await Account.findOneAndUpdate(
+    {
+      _id: payerAccount._id,
+      balance: { $gte: requestObj.amount }, // Invariant check inside DB engine
+    },
+    {
+      $inc: { balance: -requestObj.amount }, // Atomic decrement
+    },
+    updatePayerOpts
+  );
+
+  if (!updatedPayerAccount) {
     throw new Error("Insufficient balance to satisfy request");
   }
 
-  payerAccount.balance -= requestObj.amount;
-  requesterAccount.balance += requestObj.amount;
+  // Atomic credit to requester account
+  const updateRequesterOpts = { new: true };
+  if (session) updateRequesterOpts.session = session;
 
-  if (session) {
-    await payerAccount.save({ session });
-    await requesterAccount.save({ session });
-  } else {
-    await payerAccount.save();
-    await requesterAccount.save();
+  const updatedRequesterAccount = await Account.findOneAndUpdate(
+    { _id: requesterAccount._id },
+    { $inc: { balance: requestObj.amount } }, // Atomic increment
+    updateRequesterOpts
+  );
+
+  if (!updatedRequesterAccount) {
+    if (!session) {
+      await Account.findByIdAndUpdate(payerAccount._id, { $inc: { balance: requestObj.amount } });
+    }
+    throw new Error("Requester account could not be credited");
   }
 
   requestObj.status = "accepted";
@@ -125,8 +189,8 @@ const executeApproval = async (userId, requestObj, payerAccount, requesterAccoun
   }
 
   const txnData = {
-    senderAccount: payerAccount._id,
-    receiverAccount: requesterAccount._id,
+    senderAccount: updatedPayerAccount._id,
+    receiverAccount: updatedRequesterAccount._id,
     amount: requestObj.amount,
     description: requestObj.description || "Request payment",
     status: "completed",
@@ -134,8 +198,8 @@ const executeApproval = async (userId, requestObj, payerAccount, requesterAccoun
     metadata: {
       senderName: `${requestObj.payer.firstname} ${requestObj.payer.lastname}`,
       receiverName: `${requestObj.requester.firstname} ${requestObj.requester.lastname}`,
-      senderAccountNumber: payerAccount.accountNumber,
-      receiverAccountNumber: requesterAccount.accountNumber,
+      senderAccountNumber: updatedPayerAccount.accountNumber,
+      receiverAccountNumber: updatedRequesterAccount.accountNumber,
     },
   };
 
@@ -146,6 +210,12 @@ const executeApproval = async (userId, requestObj, payerAccount, requesterAccoun
   return { transaction };
 };
 
+/**
+ * Responds to a payment request.
+ * - If declined: Updates request status to 'declined' and notifies the requester.
+ * - If approved: Performs balance checks, updates balances, and creates a transaction record.
+ *   Uses a MongoDB transaction session with a fallback to standalone mode if replica sets are unsupported.
+ */
 export const respondToRequest = async (req, res) => {
   try {
     const { requestId, accept } = req.body;
@@ -195,10 +265,10 @@ export const respondToRequest = async (req, res) => {
 
     let session = null;
     try {
+      // Step A: Attempt standard MongoDB multi-document ACID transaction
       session = await mongoose.startSession();
       session.startTransaction();
 
-      // Fetch and execute with transaction session
       const payerAccountTx = await Account.findOne({ user: userId }).session(session);
       const requesterAccountTx = await Account.findOne({ user: requestObj.requester._id }).session(session);
       const requestObjTx = await PaymentRequest.findById(requestId).populate("requester").populate("payer").session(session);
@@ -212,21 +282,30 @@ export const respondToRequest = async (req, res) => {
         try {
           await session.abortTransaction();
           session.endSession();
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const errStr = err.message || "";
+      // Step B: Fallback: If MongoDB runs in local standalone mode without replica-sets, retry without transactions
       if (errStr.includes("Transaction numbers are only allowed") || errStr.includes("replica set") || errStr.includes("sessions are not supported")) {
         console.log("MongoDB is standalone (replica sets not supported). Retrying request approval without session context...");
         try {
           await executeApproval(userId, requestObj, payerAccount, requesterAccount, mpin, null);
         } catch (retryErr) {
           console.error(`Retry Failed ${retryErr}`);
-          return res.status(400).json({ message: retryErr.message || "Approval failed" });
+          return res.status(retryErr.statusCode || 400).json({
+            message: retryErr.message || "Approval failed",
+            isLocked: retryErr.isLocked || false,
+            remainingAttempts: retryErr.remainingAttempts,
+          });
         }
       } else {
         console.error(`Approval Failed ${err}`);
-        return res.status(400).json({ message: err.message || "Approval failed" });
+        return res.status(err.statusCode || 400).json({
+          message: err.message || "Approval failed",
+          isLocked: err.isLocked || false,
+          remainingAttempts: err.remainingAttempts,
+        });
       }
     }
 

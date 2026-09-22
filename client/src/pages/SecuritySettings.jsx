@@ -1,7 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import { apiClient } from "../services/apiClient";
 
 export const SecuritySettings = () => {
   const [pin, setPin] = useState("");
@@ -29,14 +27,7 @@ export const SecuritySettings = () => {
     }
 
     try {
-      const token = localStorage.getItem("token");
-      const { data } = await axios.post(
-        `${apiUrl}/user/set-mpin`,
-        { mpin: pin },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const { data } = await apiClient.post("/user/set-mpin", { mpin: pin });
       setSuccess(data.message || "Transaction PIN updated successfully!");
       setPin("");
       setConfirmPin("");

@@ -1,5 +1,10 @@
 import mongoose from "mongoose";
 
+/**
+ * Account Schema: Defines bank accounts registered under a user.
+ * Stores account credentials (account number, IFSC, bank name), the real-time balance,
+ * and maintains reference links to past transactions.
+ */
 const accountSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,

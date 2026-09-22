@@ -1,26 +1,15 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import apiClient from "./apiClient";
 
 /**
  * Reusable logout helper to consistently handle session cleanup & backend token revocation
  */
 export const performLogout = async (navigate, apiUrl) => {
-  const token = localStorage.getItem("token");
-  const targetApiUrl = apiUrl || import.meta.env.VITE_API_URL;
-
-  if (token && targetApiUrl) {
-    try {
-      await axios.post(
-        `${targetApiUrl}/auth/logout`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-    } catch (err) {
-      console.warn("Backend token revocation skipped or failed:", err.message);
-    }
+  try {
+    await apiClient.post("/auth/logout");
+  } catch (err) {
+    console.warn("Backend token revocation skipped or failed:", err.message);
   }
 
   localStorage.removeItem("token");
@@ -40,24 +29,12 @@ export const userService = () => {
   const [accounts, setAccounts] = useState([]);
   const [id, setId] = useState("");
   const [hasMpin, setHasMpin] = useState(false);
-  const apiUrl = import.meta.env.VITE_API_URL;
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      console.error("No token found, redirecting to sign-in page.");
-      navigate("/signin");
-      return;
-    }
-
     const fetchUser = async () => {
       try {
-        const { data } = await axios.get(`${apiUrl}/user/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const { data } = await apiClient.get("/user/me");
         setUsername(data.username);
         setFirstname(data.firstname);
         setLastname(data.lastname);
@@ -70,12 +47,12 @@ export const userService = () => {
         console.error("Error fetching user details:", err.message);
         if (err.response && err.response.status === 401) {
           console.error("Unauthorized access, performing logout.");
-          performLogout(navigate, apiUrl);
+          performLogout(navigate);
         }
       }
     };
     fetchUser();
-  }, [apiUrl, navigate]);
+  }, [navigate]);
 
   return {
     username,

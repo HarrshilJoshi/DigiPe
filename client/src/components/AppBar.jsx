@@ -1,4 +1,4 @@
-import axios from "axios";
+import { apiClient } from "../services/apiClient";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -6,42 +6,20 @@ export const AppBar = () => {
   const [firstname, setFirstname] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
-  const apiUrl = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      console.error("No token found, redirecting to sign-in page.");
-      navigate("/signin");
-    }
     const fetchUser = async () => {
       try {
-        const { data } = await axios.get(`${apiUrl}/user/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const { data } = await apiClient.get("/user/me");
         setFirstname(data.firstname);
-        console.log("User Data:", data.username);
-        console.log("Fetched Data:", data);
       } catch (err) {
         console.error("Error fetching user details:", err);
-        if (err.response && err.response.status === 401) {
-          console.error("Unauthorized access, redirecting to sign-in page.");
-          navigate("/signin");
-        } else {
-          console.error(
-            "An error occurred while fetching user details:",
-            err.message
-          );
-        }
       }
     };
     fetchUser();
-  }, [navigate, apiUrl]);
+  }, [navigate]);
 
 
 

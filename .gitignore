@@ -31,3 +31,8 @@ build/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Chat Exports & Logs
+CHAT_EXPORT.*
+*CHAT_EXPORT*
+

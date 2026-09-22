@@ -1,5 +1,9 @@
 import mongoose from "mongoose";
 
+/**
+ * PaymentRequest Schema: Stores billing requests sent from one user to another.
+ * Tracks the requester, target payer, requested amount, descriptions, and current status (pending, accepted, declined).
+ */
 const paymentRequestSchema = new mongoose.Schema({
   requester: {
     type: mongoose.Schema.Types.ObjectId,

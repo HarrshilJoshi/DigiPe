@@ -7,7 +7,7 @@
     "start": "node server/src/server.js",
     "postinstall": "npm install --prefix server",
     "install-all": "npm install --prefix client && npm install --prefix server",
-    "client": "npm start --prefix client",
+    "client": "npm run dev --prefix client",
     "server": "npm run dev --prefix server",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "build": "npm run build --prefix client",

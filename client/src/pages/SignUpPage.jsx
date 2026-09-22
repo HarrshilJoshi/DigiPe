@@ -1,6 +1,6 @@
-import axios from "axios";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import apiClient from "../services/apiClient";
 
 export const SignUpPage = () => {
   const usernameRef = useRef();
@@ -15,8 +15,6 @@ export const SignUpPage = () => {
   const [fadeOut, setFadeOut] = useState(false);
   const navigate = useNavigate();
 
-  const apiUrl = import.meta.env.VITE_API_URL;
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -29,7 +27,7 @@ export const SignUpPage = () => {
       password: passwordRef.current.value,
     };
     try {
-      const response = await axios.post(`${apiUrl}/auth/signup`, {
+      const res = await apiClient.post("/auth/signup", {
         username: payload.username,
         firstname: payload.firstname,
         lastname: payload.lastname,
@@ -37,7 +35,11 @@ export const SignUpPage = () => {
         email: payload.email,
         password: payload.password,
       });
-      setResponse(response.data.message);
+      const token = res.data.accessToken || res.data.token;
+      if (token) {
+        localStorage.setItem("token", token);
+      }
+      setResponse(res.data.message);
       setFadeOut(true);
       setTimeout(() => {
         navigate("/signin");
